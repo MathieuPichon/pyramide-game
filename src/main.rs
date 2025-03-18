@@ -45,7 +45,7 @@ fn _jouer_partie1() {
     pyramide.update('a', 4, false);
     pyramide.print();
     // pyramide.coup('c', 4, 'a', 4).unwrap();
-    let coups = partie1();
+    let coups = _partie1();
     let res = _enchainer_coups(coups, &mut pyramide);
     if res.is_err() {
         let coup_invalide = res.unwrap_err();
