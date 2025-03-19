@@ -1,9 +1,84 @@
+use std::{collections::HashMap, hash::{Hash, Hasher}, thread, time::Duration};
+use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
+use petgraph::{algo::dijkstra, prelude::GraphMap, visit::Dfs, Directed};
+use rand::*;
+
 fn main() {
+
+    if false {
+        let (won_games, lost_games) = brute_force_search();
+        println!("Won games : {:?} ; Lost games : {:?}", won_games.len(), lost_games.len());
+    }
+
+    test_graph_from_start_pos();
+}
+
+fn test_graph_from_start_pos() {
+    let pos_possible = pos_possibles();
+    let mut to_visit: Vec<Pyramide> = vec![];
+    //On initialize avec les positions de départ possible
+    for pos in pos_possible.iter() {
+        let mut pyramide = Pyramide::new();
+        pyramide.update(pos.ligne, pos.col, false);
+        to_visit.push(pyramide.clone());
+    }
+
+    let state_graph = build_graph(to_visit);
+    println!("Stats du composant de graph contenant les positions de départ");
+    println!("Graph nodes : {:?}", state_graph.node_count());
+    println!("Graph edges : {:?}", state_graph.edge_count());
+
+    let mut start = Pyramide::new();
+    start.update('a', 4, false);
+    let node_dist = dijkstra(&state_graph, start, None, |_| 1);
+    let max_node_dist = node_dist.values().max().expect("always number");
+    println!("Max graph depth from graph : {:?}", max_node_dist);
+    let deepest_games: Vec<(&Pyramide, &i32)> = node_dist.iter().filter(|(_, dist)| *dist == max_node_dist ).collect();
+    println!("Number of deepest games : {:?}", deepest_games.len())
+}
+
+fn build_graph(mut to_visit: Vec<Pyramide>) -> GraphMap<Pyramide, Coup, Directed>{
+    let mut state_graph = GraphMap::<Pyramide, Coup, Directed>::new();
+    let pos_possible = pos_possibles();
+    // On parcourt pour tous les 
+    let mut new_to_visit: Vec<Pyramide> = vec![];
+    let mult_prog = MultiProgress::new();
+    let bar = mult_prog.add(ProgressBar::new(65534));
+    mult_prog.println("starting!").unwrap();
+    while to_visit.len() != 0 {
+        bar.set_position(state_graph.node_count() as u64);
+        let bar2 = mult_prog.add(ProgressBar::new(to_visit.len() as u64));
+        for pyra in to_visit.drain(..).progress_with(bar2) {
+            if pyra.partie_finie() {
+                continue;
+            }
+            let coups_possibles = cherche_coups_possible(&pyra, &pos_possible);
+            if coups_possibles.is_none() {
+                continue;
+            }
+            for coup_pos in coups_possibles.expect("checked before").iter() {
+                let mut new_pyramide = pyra.clone();
+                new_pyramide
+                    .coup_coup(coup_pos.clone())
+                    .expect("Coup always possible");
+                if !state_graph.contains_node(new_pyramide) {
+                    new_to_visit.push(new_pyramide.clone())
+                }
+                state_graph.add_edge(pyra, new_pyramide, *coup_pos);
+            }
+        }
+        to_visit.extend(new_to_visit.drain(..));
+    }
+    bar.finish();
+    return state_graph
+}
+
+fn brute_force_search() -> (Vec<Pyramide>, Vec<Pyramide>){
     let pos_possible = pos_possibles();
     let mut won_games: Vec<Pyramide> = vec![];
     let mut lost_games: Vec<Pyramide> = vec![];
     for pos in pos_possible.iter() {
-        println!("Pos testing : {:?}", pos);
+        // println!("Pos testing : {:?}", pos);
         let mut pyramide = Pyramide::new();
         pyramide.update(pos.ligne, pos.col, false); // retire pos de départ
         let mut branches: Vec<Pyramide> = vec![pyramide];
@@ -21,23 +96,16 @@ fn main() {
                 }
                 for coup_pos in coups_possibles.expect("checked before").iter() {
                     let mut new_pyramide = pyra.clone();
-                    // new_pyramide.print();
                     new_pyramide
                         .coup_coup(coup_pos.clone())
                         .expect("Coup always possible");
-                    // new_pyramide.print();
                     new_branches.push(new_pyramide)
                 }
             }
             branches.extend(new_branches.drain(..))
         }
     }
-    println!("{:?}", won_games.len());
-    println!("{:?}", lost_games.len());
-
-    lost_games[0].print();
-    lost_games[1].print();
-    lost_games[2].print();
+    return (won_games, lost_games)
 }
 
 fn _jouer_partie1() {
@@ -71,13 +139,13 @@ fn _enchainer_coups(coups: Vec<Coup>, pyramide: &mut Pyramide) -> Result<(), Cou
     return Ok(());
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq)]
 struct Position {
     ligne: char,
     col: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq)]
 struct Coup {
     pos_depart: Position,
     pos_arrive: Position,
@@ -85,24 +153,58 @@ struct Coup {
 
 const DIAG_RULE_ALLOWED: bool = false;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialOrd, Ord)]
 struct Pyramide {
-    a: Vec<bool>,
-    b: Vec<bool>,
-    c: Vec<bool>,
-    d: Vec<bool>,
-    _coups: Vec<Coup>,
+    a: [bool;1],
+    b: [bool;3],
+    c: [bool;5],
+    d: [bool;7],
+    // _coups: Vec<Coup>,
 }
+
+impl PartialEq for Pyramide {
+    fn eq(&self, other: &Self) -> bool {
+        if self.a == other.a && self.b == other.b && self.c == other.c && self.d == other.d {
+            return true
+        }
+        return false
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        if self.a != other.a || self.b != other.b || self.c != other.c || self.d != other.d {
+            return true
+        }
+        return false
+    }
+}
+
+impl Hash for Pyramide {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.a.hash(state);
+        self.b.hash(state);
+        self.c.hash(state);
+        self.d.hash(state);
+    }
+}
+
 
 impl Pyramide {
     fn new() -> Pyramide {
         Pyramide {
-            a: vec![true],
-            b: vec![true, true, true],
-            c: vec![true, true, true, true, true],
-            d: vec![true, true, true, true, true, true, true],
-            _coups: vec![],
+            a: [true],
+            b: [true, true, true],
+            c: [true, true, true, true, true],
+            d: [true, true, true, true, true, true, true],
+            // _coups: vec![],
         }
+    }
+
+    fn empty() -> Pyramide {
+        Pyramide { 
+            a: [false],
+            b: [false, false, false],
+            c: [false, false, false, false, false],
+            d: [false, false, false, false, false, false, false] }
     }
 
     fn partie_finie(&self) -> bool {
@@ -129,25 +231,23 @@ impl Pyramide {
     }
 
     fn get(&self, ligne: char, col: usize) -> Option<bool> {
-        let (dep, offset) = match ligne {
-            'a' => (&self.a, 4),
-            'b' => (&self.b, 3),
-            'c' => (&self.c, 2),
-            'd' => (&self.d, 1),
+        match ligne {
+            'a' => return Some(self.a[col-4]),
+            'b' => return Some(self.b[col-3]),
+            'c' => return Some(self.c[col-2]),
+            'd' => return Some(self.d[col-1]),
             _ => return None,
         };
-        return Some(dep[col - offset]);
     }
 
     fn update(&mut self, ligne: char, col: usize, value: bool) {
-        let (dep, offset) = match ligne {
-            'a' => (&mut self.a, 4),
-            'b' => (&mut self.b, 3),
-            'c' => (&mut self.c, 2),
-            'd' => (&mut self.d, 1),
-            _ => return (),
+        match ligne {
+            'a' => self.a[col-4] = value,
+            'b' => self.b[col-3] = value,
+            'c' => self.c[col-2] = value,
+            'd' => self.d[col-1] = value,
+            _ => (),
         };
-        dep[col - offset] = value
     }
 
     fn print(&self) {
@@ -239,14 +339,15 @@ impl Pyramide {
     }
 
     fn coup_coup(&mut self, coup: Coup) -> Result<(), &str> {
-        let res = self.coup_pos(coup.pos_depart, coup.pos_arrive);
-        match res {
-            Ok(()) => {
-                self._coups.push(coup.clone());
-                return Ok(());
-            }
-            Err(_) => return Err("retrow"),
-        }
+        self.coup_pos(coup.pos_depart, coup.pos_arrive)
+        // let res = self.coup_pos(coup.pos_depart, coup.pos_arrive);
+        // match res {
+        //     Ok(()) => {
+        //         self._coups.push(coup.clone());
+        //         return Ok(());
+        //     }
+        //     Err(_) => return Err("retrow"),
+        // }
     }
 
     fn coup(
@@ -315,6 +416,14 @@ fn pos_possibles() -> Vec<Position> {
     return pos_possible_init;
 }
 
+fn parties_gagnees() -> Vec<Pyramide> {
+    let pos_possible_init = pos_possibles();
+    return pos_possible_init
+        .iter()
+        .map(|x| { let mut res = Pyramide::empty(); res.update(x.ligne, x.col, true); res})
+        .collect()
+}
+
 fn cherche_coups_possible(pyramide: &Pyramide, pos_possible: &Vec<Position>) -> Option<Vec<Coup>> {
     // chercher toutes les cases false et voir si on peut les remplir
     // possible de remplir de plusieurs façons
@@ -337,4 +446,61 @@ fn cherche_coups_possible(pyramide: &Pyramide, pos_possible: &Vec<Position>) -> 
     } else {
         return None;
     }
+}
+
+
+fn _test_progress_bar() {
+    let m = MultiProgress::new();
+    let sty = ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+    )
+    .unwrap()
+    .progress_chars("##-");
+
+    let n = 200;
+    let pb = m.add(ProgressBar::new(n));
+    pb.set_style(sty.clone());
+    pb.set_message("todo");
+    let pb2 = m.add(ProgressBar::new(n));
+    pb2.set_style(sty.clone());
+    pb2.set_message("finished");
+
+    let pb3 = m.insert_after(&pb2, ProgressBar::new(1024));
+    pb3.set_style(sty);
+
+    m.println("starting!").unwrap();
+
+    let mut threads = vec![];
+
+    let m_clone = m.clone();
+    let h3 = thread::spawn(move || {
+        for i in 0..1024 {
+            thread::sleep(Duration::from_millis(2));
+            pb3.set_message(format!("item #{}", i + 1));
+            pb3.inc(1);
+        }
+        m_clone.println("pb3 is done!").unwrap();
+        pb3.finish_with_message("done");
+    });
+
+    for i in 0..n {
+        thread::sleep(Duration::from_millis(15));
+        if i == n / 3 {
+            thread::sleep(Duration::from_secs(2));
+        }
+        pb.inc(1);
+        let pb2 = pb2.clone();
+        threads.push(thread::spawn(move || {
+            thread::sleep(rand::rng().random_range(Duration::from_secs(1)..Duration::from_secs(5)));
+            pb2.inc(1);
+        }));
+    }
+    pb.finish_with_message("all jobs started");
+
+    for thread in threads {
+        let _ = thread.join();
+    }
+    let _ = h3.join();
+    pb2.finish_with_message("all jobs done");
+    m.clear().unwrap();
 }
