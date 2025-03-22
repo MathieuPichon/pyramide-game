@@ -1,6 +1,6 @@
-use std::{collections::HashMap, hash::{Hash, Hasher}, thread, time::Duration};
+use std::{collections::{HashMap, HashSet}, hash::{Hash, Hasher}, thread, time::Duration};
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
-use petgraph::{algo::dijkstra, prelude::GraphMap, visit::Dfs, Directed};
+use petgraph::{algo::{connected_components, dijkstra}, prelude::GraphMap, visit::{Dfs}, Directed, Undirected};
 use rand::*;
 
 fn main() {
@@ -10,7 +10,68 @@ fn main() {
         println!("Won games : {:?} ; Lost games : {:?}", won_games.len(), lost_games.len());
     }
 
-    test_graph_from_start_pos();
+    if false {
+        test_graph_from_start_pos();
+    }
+
+    test_full_graph();
+
+}
+
+fn test_full_graph() {
+    let mut to_visit:Vec<Pyramide> = vec![]; 
+    for seed in 1..=65534 {
+        to_visit.push(Pyramide::init_from_seed(seed))
+    }
+
+    let full_graph = build_graph(to_visit.clone());
+    let nb_comp = connected_components(&full_graph);
+    println!("Number of nodes : {:?}", full_graph.node_count());
+    println!("Number of edges : {:?}", full_graph.edge_count());
+    println!("Number of components : {:?}", nb_comp);
+    
+
+    let mut already_visited = HashSet::<Pyramide>::default();
+    let mut map_real_index: HashMap<u32, Vec<Pyramide>> = HashMap::new();
+
+    let mut cpt = 0;
+
+    for current_node_index in full_graph.nodes().progress() {
+        // let dfs = Dfs::new(full_graph, );
+        if already_visited.contains(&current_node_index) {
+            continue;
+        }
+        let mut current_vec: Vec<Pyramide> = Vec::new();
+        let mut dfs = Dfs::new(&full_graph, current_node_index);
+        while let Some(nx) = dfs.next(&full_graph) {
+            current_vec.push(nx);
+            already_visited.insert(nx);
+        }
+        map_real_index.insert(cpt, current_vec);
+        cpt += 1;
+    }
+    
+    for (id, comp) in map_real_index.iter() {
+        if comp.len() > 1 {
+            println!("Comp {id} has {:?} elements", comp.len());
+        } else {
+            println!("Comp {id} has pyramide :");
+            comp[0].print();
+        }
+    }
+    
+    let pos_possible = pos_possibles();
+    for pos in pos_possible.iter() {
+        let mut pyramide = Pyramide::new();
+        pyramide.update(pos.ligne, pos.col, false); // retire pos de départ
+        for (id, comp) in map_real_index.iter() {
+            if comp.contains(&pyramide) {
+                pyramide.print();
+                println!("Pyramide is in comp : {:?}", id);
+                continue;
+            }
+        }
+    }
 }
 
 fn test_graph_from_start_pos() {
@@ -37,10 +98,10 @@ fn test_graph_from_start_pos() {
     println!("Number of deepest games : {:?}", deepest_games.len())
 }
 
-fn build_graph(mut to_visit: Vec<Pyramide>) -> GraphMap<Pyramide, Coup, Directed>{
-    let mut state_graph = GraphMap::<Pyramide, Coup, Directed>::new();
+fn build_graph(mut to_visit: Vec<Pyramide>) -> GraphMap<Pyramide, Coup, Undirected>{
+    let mut state_graph = GraphMap::<Pyramide, Coup, Undirected>::new();
     let pos_possible = pos_possibles();
-    // On parcourt pour tous les 
+
     let mut new_to_visit: Vec<Pyramide> = vec![];
     let mult_prog = MultiProgress::new();
     let bar = mult_prog.add(ProgressBar::new(65534));
@@ -49,11 +110,9 @@ fn build_graph(mut to_visit: Vec<Pyramide>) -> GraphMap<Pyramide, Coup, Directed
         bar.set_position(state_graph.node_count() as u64);
         let bar2 = mult_prog.add(ProgressBar::new(to_visit.len() as u64));
         for pyra in to_visit.drain(..).progress_with(bar2) {
-            if pyra.partie_finie() {
-                continue;
-            }
             let coups_possibles = cherche_coups_possible(&pyra, &pos_possible);
             if coups_possibles.is_none() {
+                state_graph.add_node(pyra);
                 continue;
             }
             for coup_pos in coups_possibles.expect("checked before").iter() {
@@ -78,7 +137,6 @@ fn brute_force_search() -> (Vec<Pyramide>, Vec<Pyramide>){
     let mut won_games: Vec<Pyramide> = vec![];
     let mut lost_games: Vec<Pyramide> = vec![];
     for pos in pos_possible.iter() {
-        // println!("Pos testing : {:?}", pos);
         let mut pyramide = Pyramide::new();
         pyramide.update(pos.ligne, pos.col, false); // retire pos de départ
         let mut branches: Vec<Pyramide> = vec![pyramide];
@@ -205,6 +263,16 @@ impl Pyramide {
             b: [false, false, false],
             c: [false, false, false, false, false],
             d: [false, false, false, false, false, false, false] }
+    }
+
+    fn init_from_seed(seed: u16) -> Pyramide {
+        let val: Vec<bool> = (0..16).map(|x:u16| (seed & (1 << x)) != 0).collect();
+        return Pyramide { 
+            a: [val[0]],
+            b: [val[1], val[2], val[3]],
+            c: [val[4], val[5], val[6], val[7], val[8]],
+            d: [val[9], val[10], val[11], val[12], val[13], val[14], val[15]],
+        }
     }
 
     fn partie_finie(&self) -> bool {
