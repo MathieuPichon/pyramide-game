@@ -377,7 +377,6 @@ impl Pyramide {
         if self.get(ligne_milieu, (col_depart + dist) as usize) == Some(false) {
             return false;
         }
-        // self.update(ligne_milieu, (col_depart + dist) as usize, false);
 
         true
     }

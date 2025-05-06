@@ -27,8 +27,11 @@ Exemple d'un coup :
 ## Objectifs
 
 - Problèmes
-  - [ ] Déterminer si le jeux est resolvable ou pas dans un version 4 par 7 sans coup en diagonale
-  - [ ] Si pas solvable, avec les coups en diagonale
+  - [x] Déterminer si le jeux est resolvable ou pas dans un version 4 par 7 sans coup en diagonale
+    - Réponse : NON
+  - [x] Si pas solvable, avec les coups en diagonale ?
+    - Réponse : OUI
 - Features techniques
   - [x] Afficher une grille du jeux
-  - 
+  - [x] Construire le graph de tous les coups possibles
+  - [x] Calculer les propriétés des graphs (nombre d'edge, nombre d'élément par composant, ...)

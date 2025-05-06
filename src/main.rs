@@ -1,5 +1,6 @@
 mod naive_pyra;
 pub use crate::naive_pyra::*;
+mod dyn_pyra;
 
 fn main() {
 
