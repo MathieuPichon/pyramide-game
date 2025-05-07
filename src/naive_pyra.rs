@@ -8,14 +8,14 @@ pub fn test_full_graph() {
     for seed in 1..=65534 {
         to_visit.push(Pyramide::init_from_seed(seed))
     }
-
+    println!("Using Naive build_graph method");
     let full_graph = build_graph(to_visit.clone());
     let nb_comp = connected_components(&full_graph);
     println!("Number of nodes : {:?}", full_graph.node_count());
     println!("Number of edges : {:?}", full_graph.edge_count());
     println!("Number of components : {:?}", nb_comp);
     
-
+    return;
     let mut already_visited = HashSet::<Pyramide>::default();
     let mut map_real_index: HashMap<u32, Vec<Pyramide>> = HashMap::new();
 
@@ -194,7 +194,7 @@ struct Coup {
     pos_arrive: Position,
 }
 
-const DIAG_RULE_ALLOWED: bool = false;
+const DIAG_RULE_ALLOWED: bool = true;
 
 #[derive(Debug, Clone, Copy, Eq, PartialOrd, Ord)]
 struct Pyramide {

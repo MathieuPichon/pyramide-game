@@ -1,6 +1,7 @@
 mod naive_pyra;
 pub use crate::naive_pyra::*;
 mod dyn_pyra;
+pub use crate::dyn_pyra::test_dyn_graph;
 
 fn main() {
 
@@ -12,6 +13,9 @@ fn main() {
         test_graph_from_start_pos();
     }
 
-    test_full_graph();
+    if false {
+        test_full_graph();
+    }
 
+    test_dyn_graph();
 }
