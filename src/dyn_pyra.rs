@@ -3,19 +3,17 @@ use std::hash::{Hash, Hasher};
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use petgraph::{algo::connected_components, prelude::GraphMap, Undirected};
 
-pub fn test_dyn_graph() {
-    let diag_allowed = true;
+pub fn test_dyn_graph(rules: PyramideRules) {
     println!("Using build_full_graph method");
-    let lines = 4;
-    let full_graph = build_full_graph(lines, diag_allowed);
+    let full_graph = build_full_graph(rules.lines, rules.diag_allowed);
     let nb_comp = connected_components(&full_graph);
     println!("Number of nodes : {:?}", full_graph.node_count());
     println!("Number of edges : {:?}", full_graph.edge_count());
     println!("Number of components : {:?}", nb_comp);
 
     println!("Using build_partial_graph method");
-    let max_seed = 2_u128.pow((lines*lines) as u32) - 1;
-    let pyras = (1..max_seed).map(|x| Pyramide::init_from_seed(lines, x, diag_allowed)).collect();
+    let max_seed = 2_u128.pow((rules.lines*rules.lines) as u32) - 1;
+    let pyras = (1..max_seed).map(|x| Pyramide::init_from_seed(rules.lines, x, rules.diag_allowed)).collect();
     let full_graph_partial = build_partial_graph(pyras);
     let nb_comp_partial = connected_components(&full_graph_partial);
     println!("Number of nodes : {:?}", full_graph_partial.node_count());
@@ -96,8 +94,8 @@ fn cherche_coups_possibles(pyramide: &Pyramide, coups: &Vec<Coup>) -> Option<Vec
 
 #[derive(Debug, PartialEq, Hash, Clone, Copy, Eq, PartialOrd, Ord)]
 pub struct PyramideRules {
-    lines: usize,
-    diag_allowed: bool
+    pub lines: usize,
+    pub diag_allowed: bool
 }
 
 #[derive(Debug, PartialEq, Hash, Clone, Copy)]
@@ -128,7 +126,6 @@ type Seed = u128;
 
 type Cell = Option<bool>;
 type CellIndex = usize;
-// type MoveCellIndex = usize;
 
 #[derive(Debug, Clone, PartialOrd, Eq, Ord)]
 pub struct Pyramide {
@@ -200,10 +197,6 @@ impl Pyramide {
         let mid_row = mil_vec_idx;
         let bot_row = mil_vec_idx + max_line;
 
-        // let top = &mut self.cells[first_row-1..=first_row+1];
-        // let mid = &mut self.cells.[sec_row-1..=sec_row+1];
-        // let bot = &mut self.cells[third_row-1..=third_row+1];
-
         let (dep_idx, arr_idx) = match (coup.orientation, coup.dir) {
             (Orientation::DiagonalG, Direction::Bas) => (top_row-1, bot_row+1),
             (Orientation::DiagonalG, Direction::Haut) => (bot_row+1, top_row-1),
@@ -235,24 +228,6 @@ impl Pyramide {
         };
         Err(())
     }
-
-    // fn move_cell_index_to_vec_index(&self, idx: CellIndex) -> Result<usize, ()> {
-    //     if idx >= self.lines*self.lines {
-    //         return Err(())
-    //     }
-    //     let mut cur_idx = 0;
-    //     let max_line = self.lines * 2 - 1;
-    //     for (row, line_length) in (1..=max_line-2).step_by(2).enumerate() {
-    //         cur_idx += line_length;
-    //         if idx < cur_idx {
-    //             // on est sur la bonne ligne
-    //             let base = (row+2) * max_line;
-    //             let recul = (max_line-1)/2 - row;
-    //             return Ok(base - recul + idx - cur_idx); 
-    //         };
-    //     };
-    //     Err(())
-    // }
 
     pub fn iter(&self) -> CellsIterator {
         CellsIterator { cells: &self.cells, lines: self.lines, index: 0, col_index: 0, cur_line: 0 }
@@ -300,7 +275,7 @@ impl Pyramide {
             Ok(idx) => idx,
             Err(_) => return false
         };
-        let max_line = 2 * self.lines - 1;
+        let max_line = 2 * self.lines + 1;
         let first_row = idx - max_line;
         let sec_row = idx;
         let third_row = idx + max_line;
@@ -415,37 +390,6 @@ impl<'a> Iterator for CellsIterator<'a> {
         }
     }
 }
-
-// pub struct MoveCellsIterator<'a> {
-//     cells: &'a Vec<Cell>,
-//     lines: usize,
-//     index: MoveCellIndex,
-//     col_index: usize,
-//     cur_line: usize,
-// }
-
-// impl<'a> Iterator for MoveCellsIterator<'a> {
-//     // Iterates on all the pyramide cells
-//     type Item = &'a Cell;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         if self.cur_line < self.lines {
-//             let max_line = self.lines * 2 - 1;
-//             let recul = (max_line-1)/2 - self.cur_line + 1;
-//             let temp_index = self.cur_line*max_line + recul + self.col_index;
-
-//             self.col_index += 1;
-//             self.index += 1;
-//             if self.col_index > 2 * (self.cur_line - 1) {
-//                 self.col_index = 0;
-//                 self.cur_line += 1;
-//             };
-//             Some(&self.cells[temp_index])
-//         }
-//         else {
-//             None
-//         }
-//     }
-// }
 
 
 #[cfg(test)]
@@ -582,28 +526,8 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_move_cell_index_to_vec_index_size_3() {
-    //     let pyra = Pyramide::init_full(3, false);
-    //     let res = pyra.cell_index_to_vec_index(3);
-    //     assert_eq!(res, Ok(13));
-    //     let res = pyra.cell_index_to_vec_index(2);
-    //     assert_eq!(res, Ok(12));
-    //     let res = pyra.cell_index_to_vec_index(0);
-    //     assert_eq!(res, Ok(7));
-    // }
-
-    // #[test]
-    // fn test_move_cell_index_to_vec_index_size_4() {
-    //     let pyra = Pyramide::init_full(4, false);
-    //     let res = pyra.move_cell_index_to_vec_index(8);
-    //     assert_eq!(res, Ok(26));
-    //     let res = pyra.move_cell_index_to_vec_index(2);
-    //     assert_eq!(res, Ok(17));
-    // }
-
     #[test]
-    fn test_hash() {
+    fn test_seed() {
         for i in 0..=65535 {
             let pyra = Pyramide::init_from_seed(4, i, false);
             assert_eq!(i, pyra.seed());
@@ -648,5 +572,18 @@ mod tests {
         assert!(res.contains(&Coup { mil: 2, orientation: Orientation::Vertical, dir: Direction::Haut }));
         assert!(res.contains(&Coup { mil: 3, orientation: Orientation::DiagonalG, dir: Direction::Haut }));
         assert!(res.contains(&Coup { mil: 6, orientation: Orientation::Horizontal, dir: Direction::Haut }));
+    }
+
+    #[test]
+    fn test_coup() {
+        // _ _ T            _ _ F
+        // _ F T F     ->   _ F F F
+        // F F F F F        F F T F F
+        // seed : 5
+        let mut pyra = Pyramide::init_from_seed(3, 5, false);
+        let coup = Coup {mil: 2, orientation: Orientation::Vertical, dir: Direction::Bas};
+        let res = pyra.coup(&coup);
+        assert!(res == Ok(()));
+        assert_eq!(pyra.seed(), 64);
     }
 }

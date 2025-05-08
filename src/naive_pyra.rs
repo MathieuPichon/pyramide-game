@@ -468,13 +468,6 @@ fn pos_possibles() -> Vec<Position> {
     return pos_possible_init;
 }
 
-fn parties_gagnees() -> Vec<Pyramide> {
-    let pos_possible_init = pos_possibles();
-    return pos_possible_init
-        .iter()
-        .map(|x| { let mut res = Pyramide::empty(); res.update(x.ligne, x.col, true); res})
-        .collect()
-}
 
 fn cherche_coups_possible(pyramide: &Pyramide, pos_possible: &Vec<Position>) -> Option<Vec<Coup>> {
     // chercher toutes les cases false et voir si on peut les remplir

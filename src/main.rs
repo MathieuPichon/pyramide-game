@@ -1,7 +1,9 @@
 mod naive_pyra;
+
 pub use crate::naive_pyra::*;
 mod dyn_pyra;
-pub use crate::dyn_pyra::test_dyn_graph;
+use dyn_pyra::PyramideRules;
+use dyn_pyra::test_dyn_graph;
 
 fn main() {
 
@@ -17,5 +19,5 @@ fn main() {
         test_full_graph();
     }
 
-    test_dyn_graph();
+    test_dyn_graph(PyramideRules{lines:4, diag_allowed: true});
 }
