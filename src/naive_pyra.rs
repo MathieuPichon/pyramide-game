@@ -15,7 +15,6 @@ pub fn test_full_graph() {
     println!("Number of edges : {:?}", full_graph.edge_count());
     println!("Number of components : {:?}", nb_comp);
     
-    return;
     let mut already_visited = HashSet::<Pyramide>::default();
     let mut map_real_index: HashMap<u32, Vec<Pyramide>> = HashMap::new();
 

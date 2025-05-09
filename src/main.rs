@@ -4,6 +4,8 @@ pub use crate::naive_pyra::*;
 mod dyn_pyra;
 use dyn_pyra::PyramideRules;
 use dyn_pyra::test_dyn_graph;
+mod terminal;
+use terminal::main as main_loop;
 
 fn main() {
 
@@ -19,5 +21,9 @@ fn main() {
         test_full_graph();
     }
 
-    test_dyn_graph(PyramideRules{lines:4, diag_allowed: true});
+    if false {
+        test_dyn_graph(PyramideRules{lines:4, diag_allowed: true});
+    }
+
+    _ = main_loop();
 }

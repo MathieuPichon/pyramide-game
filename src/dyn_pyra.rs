@@ -1,5 +1,4 @@
-use std::hash::{Hash, Hasher};
-
+use std::{collections::HashMap, hash::{Hash, Hasher}};
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use petgraph::{algo::connected_components, prelude::GraphMap, Undirected};
 
@@ -124,20 +123,21 @@ type Seed = u128;
 // to solve larger boards, a bigger seed representation needs to be implemented (the code is most likely too slow to handle such size)
 // or change the way to generate boards
 
-type Cell = Option<bool>;
-type CellIndex = usize;
+pub type Cell = Option<bool>;
+pub type CellIndex = usize;
+pub type VecIndex = usize;
 
 #[derive(Debug, Clone, PartialOrd, Eq, Ord)]
 pub struct Pyramide {
 // pub struct Pyramide<'a>{
     // rules: &'a PyramideRules,
-    lines: usize,
+    pub lines: usize,
     cells: Vec<Cell>,
-    diag_allowed: bool,
+    pub diag_allowed: bool,
 }    
 
 impl Pyramide {
-    fn new(lines: usize, diag_allowed: bool) -> Pyramide {
+    pub fn new(lines: usize, diag_allowed: bool) -> Pyramide {
         Pyramide { lines, cells: vec![None; (lines+1)*(2*lines+1)], diag_allowed: diag_allowed }
     }
 
@@ -163,7 +163,7 @@ impl Pyramide {
         return pyra
     }
 
-    fn init_full(lines: usize, diag_allowed: bool) -> Pyramide {
+    pub fn init_full(lines: usize, diag_allowed: bool) -> Pyramide {
         return Pyramide::init_from_seed(
             lines,
             2_u128.pow((lines*lines).try_into().unwrap())-1,
@@ -171,11 +171,11 @@ impl Pyramide {
         )
     }
 
-    fn partie_gagne(&self) -> bool {
+    pub fn partie_gagne(&self) -> bool {
         self.cells.iter().filter(|x| *x == &Some(true)).count() == 1
     }
 
-    fn update_cell(&mut self, idx: CellIndex, value: Cell) -> Result<(),()> {
+    pub fn update_cell(&mut self, idx: CellIndex, value: Cell) -> Result<(),()> {
         let vec_idx = match self.cell_index_to_vec_index(idx) {
             Ok(vec_idx) => vec_idx,
             Err(e) => return Err(e)
@@ -184,7 +184,7 @@ impl Pyramide {
         Ok(())
     }
 
-    fn coup(&mut self, coup: &Coup) -> Result<(),()> {
+    pub fn coup(&mut self, coup: &Coup) -> Result<(),()> {
         if !self.is_coup_valid(&coup) {
             return Err(())
         };
@@ -212,7 +212,7 @@ impl Pyramide {
         Ok(())
     }
 
-    fn cell_index_to_vec_index(&self, idx: CellIndex) -> Result<usize, ()> {
+    pub fn cell_index_to_vec_index(&self, idx: CellIndex) -> Result<VecIndex, ()> {
         if idx >= self.lines*self.lines {
             return Err(())
         }
@@ -298,26 +298,28 @@ impl Pyramide {
         }
     }
 
-    pub fn print(&self) {
-        let mut first_line = " ".to_string();
+    pub fn fmt(&self) -> String{
+        let mut res = String::new();
+        let mut first_line = "  ".to_string();
         for i in 1..=self.lines*2-1 {
             first_line.push_str(format!(" {}", i).as_str());
         }
-        // println!("  1 2 3 4 5 6 7");
-        for l in self.cells.chunks(self.lines*2-1) {
-
+        first_line.push_str(" \n");
+        res.push_str(&first_line);
+        // println!("   1 2 3 4 5 6 7 \n");
+        for l in self.cells.chunks(self.lines*2+1) {
+            let mut line = "  ".to_string();
+            for c in &l[1..l.len()-1] {
+                match c {
+                    Some(true) => line.push_str(" T"),
+                    Some(false) => line.push_str(" F"),
+                    None => line.push_str("  "),
+                }
+            }
+            line.push_str(" \n");
+            res.push_str(&line);
         }
-        // println!("a       {}      ", self.a[0] as u8);
-        // let b: Vec<u8> = self.b.clone().into_iter().map(|x| x as u8).collect();
-        // println!("b     {} {} {}   ", b[0], b[1], b[2]);
-        // let c: Vec<u8> = self.c.clone().into_iter().map(|x| x as u8).collect();
-        // println!("c   {} {} {} {} {}", c[0], c[1], c[2], c[3], c[4]);
-        // let d: Vec<u8> = self.d.clone().into_iter().map(|x| x as u8).collect();
-        // println!(
-        //     "d {} {} {} {} {} {} {}",
-        //     d[0], d[1], d[2], d[3], d[4], d[5], d[6],
-        // );
-        println!();
+        return res
     }
 
     fn seed(&self) -> u128 {
@@ -325,6 +327,12 @@ impl Pyramide {
             .enumerate()
             .filter_map(|(i, cell)| (cell == &Some(true)).then(|| 1 << i))
             .sum()
+    }
+}
+
+impl Default for Pyramide {
+    fn default() -> Self {
+        Pyramide::init_full(4, false)
     }
 }
 
@@ -389,6 +397,47 @@ impl<'a> Iterator for CellsIterator<'a> {
             return None
         }
     }
+}
+
+pub fn cell_index_hashmap(rules: PyramideRules) -> HashMap<CellIndex, VecIndex> {
+    let mut index_map = HashMap::new();    
+    
+    let max_line_length = rules.lines * 2 - 1;
+    let mut cur_idx = 0;
+
+    for (row, line_length) in (1..=max_line_length).step_by(2).enumerate() {
+        let base = row * (max_line_length+2);
+        let recul = (max_line_length+1)/2 - row;
+        for i in 0..line_length { 
+            index_map.insert(cur_idx+i,base + recul + i);
+        };
+        cur_idx += line_length;
+    };
+
+    return index_map
+}
+pub fn vec_index_hashmap(rules: PyramideRules) -> HashMap<VecIndex, CellIndex> {
+    let mut index_map = HashMap::new();    
+    
+    let max_line_length = rules.lines * 2 - 1;
+    let mut cur_idx = 0;
+
+    for (row, line_length) in (1..=max_line_length).step_by(2).enumerate() {
+        let base = row * (max_line_length+2);
+        let recul = (max_line_length+1)/2 - row;
+        for i in base..base+recul {
+            index_map.insert(i, cur_idx);
+        };
+        for i in 0..line_length {
+            index_map.insert(base + recul + i, cur_idx+i);
+        };
+        for i in recul+line_length..max_line_length+2 {
+            index_map.insert(base + i, cur_idx+line_length-1);
+        }
+        cur_idx += line_length;
+    };
+
+    return index_map
 }
 
 
@@ -523,6 +572,54 @@ mod tests {
         let vec_idx = [4, 12,13,14, 20,21,22,23,24, 28,29,30,31,32,33,34];
         for (cell_idx, vec_idx) in zip(0..16, vec_idx) {
             assert_eq!(pyra.cell_index_to_vec_index(cell_idx), Ok(vec_idx))
+        }
+    }
+
+    #[test]
+    fn test_cell_hashmap_size_3() {
+        let pyra_rules = PyramideRules{lines:3, diag_allowed: false};
+        let vec_idxs = [3, 9,10,11, 15,16,17,18,19];
+        let hash_idxs = cell_index_hashmap(pyra_rules);
+        for (cell_idx, vec_idx) in zip(0..9, vec_idxs) {
+            assert_eq!(hash_idxs.get(&cell_idx), Some(&vec_idx))
+        }        
+    }
+
+    #[test]
+    fn test_cell_hashmap_size_4() {
+        let pyra_rules = PyramideRules{lines:4, diag_allowed: false};
+        let vec_idxs = [4, 12,13,14, 20,21,22,23,24, 28,29,30,31,32,33,34];
+        let hash_idxs = cell_index_hashmap(pyra_rules);
+        for (cell_idx, vec_idx) in zip(0..16, vec_idxs) {
+            assert_eq!(hash_idxs.get(&cell_idx), Some(&vec_idx))
+        }   
+    }
+
+    #[test]
+    fn test_vec_hashmap_size_3() {
+        let pyra_rules = PyramideRules{lines:3, diag_allowed: false};
+        let cell_idxs = [
+            0,0,0,0,0,0,0,
+            1,1,1,2,3,3,3,
+            4,4,5,6,7,8,8,
+        ];
+        let hash_idxs = vec_index_hashmap(pyra_rules);
+        for (vec_idx, cell_idx) in zip(0..21, cell_idxs) {
+            assert_eq!(hash_idxs.get(&vec_idx), Some(&cell_idx))
+        }
+    }
+    #[test]
+    fn test_vec_hashmap_size_4() {
+        let pyra_rules = PyramideRules{lines:4, diag_allowed: false};
+        let cell_idxs = [
+            0,0,0,0,0,0,0,0,0,
+            1,1,1,1,2,3,3,3,3,
+            4,4,4,5,6,7,8,8,8,
+            9,9,10,11,12,13,14,15,15
+        ];
+        let hash_idxs = vec_index_hashmap(pyra_rules);
+        for (vec_idx, cell_idx) in zip(0..35, cell_idxs) {
+            assert_eq!(hash_idxs.get(&vec_idx), Some(&cell_idx))
         }
     }
 
